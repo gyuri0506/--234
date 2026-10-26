@@ -1,0 +1,49 @@
+생산·품질 Streamlit 대시보드
+
+시작 파일: streamlit_app.py
+Python 권장 버전: 3.12
+탭: 개요 / CSV 병합 / 데이터 검증 / 장비별 수율 / 생산·품질 연결 / 불량 파레토 / 일별 수율 / 처리일지
+
+로컬 실행 (프로젝트 폴더에서):
+  python -m venv .venv
+  .venv\Scripts\python.exe -m pip install -r requirements.txt
+  .venv\Scripts\python.exe -m streamlit run streamlit_app.py
+
+macOS/Linux:
+  python3 -m venv .venv
+  .venv/bin/python -m pip install -r requirements.txt
+  .venv/bin/python -m streamlit run streamlit_app.py
+
+집계 검증:
+  python -m unittest test_dashboard_core.py
+
+Streamlit Community Cloud 배포:
+  1. 이 묶음의 파일 구조 그대로 지정 GitHub 저장소에 업로드합니다.
+  2. https://share.streamlit.io 에서 GitHub 계정으로 로그인합니다.
+  3. Create app에서 저장소와 브랜치를 선택합니다.
+  4. Main file path를 streamlit_app.py로 설정합니다.
+  5. Python 3.12를 선택하고 Deploy를 누릅니다.
+  6. 앱이 열린 뒤 8개 탭과 CSV/JSON 다운로드를 확인합니다.
+공식 안내: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy
+
+데이터:
+  production.csv: 생산 LOT 원본
+  quality.csv: 품질 검사 원본
+  라인/*.csv: 라인별 병합용 원본
+  로그/처리일지.csv: duration_ms 빈 열 추가 실습 원본
+  기존 Python 스크립트와 결과 파일은 실습 기록입니다.
+  앱은 기존 validate.py를 import하지 않으므로 해당 파일의 자동 실행과 무관합니다.
+
+계산·해석:
+  - 수율 = 양품수량 합계 / 검사수량 합계 × 100. LOT 수율의 평균이 아닙니다.
+  - 불량수량 = 검사수량 − 양품수량. 유형별 단일 분류에 전량 배정합니다.
+  - 결측일은 최초~최종 관측일 안에서만 탐지하며 null로 두고 수율 선을 끊습니다.
+  - 실제 수율 0%와 미기록을 구분합니다. 0으로 결측을 채우지 않습니다.
+  - 검증 실패 행은 사유와 함께 보류하고 유효 행만 집계합니다.
+  - AI에는 일별 수율 탭의 요약 6항목 JSON만 전달합니다.
+  - 합성 실습 데이터입니다. 원인 증명이나 보정된 불량률 순위로 해석하지 않습니다.
+
+배포 상태:
+  이 안내 파일과 ZIP은 배포 준비물이며 실행 중인 외부 배포 URL을 뜻하지 않습니다.
+  현재 작업 환경에 Streamlit/matplotlib가 없고 패키지 다운로드가 차단되어 있어
+  실제 Streamlit 서버와 브라우저 UI 검증은 수행하지 못했습니다.
