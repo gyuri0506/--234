@@ -2,7 +2,8 @@ import unittest
 from pathlib import Path
 
 from dashboard_core import (PRODUCTION_COLUMNS, read_csv, csv_bytes, validate_production,
-                            merge_lines, equipment_summary, pareto_summary, daily_summary, join_quality)
+                            merge_lines, equipment_summary, pareto_summary, daily_summary, join_quality,
+                            calculation_checks)
 
 
 def row(lot, day="2026-10-01", inspected=100, good=90, kind="A"):
@@ -11,6 +12,13 @@ def row(lot, day="2026-10-01", inspected=100, good=90, kind="A"):
 
 
 class DashboardChecks(unittest.TestCase):
+    def test_calculation_report_distinguishes_unrun_and_undefined(self):
+        self.assertTrue(all(r["결과"]=="미실행" for r in calculation_checks([])))
+        valid, _ = validate_production(PRODUCTION_COLUMNS,[row("A",good=100)])
+        checks = calculation_checks(valid)
+        self.assertEqual(checks[-1]["결과"],"미해당")
+        self.assertEqual(calculation_checks(valid,1)[0]["결과"],"보류")
+
     def test_actual_totals_and_join(self):
         root = Path(__file__).parent
         columns, source = read_csv((root/"production.csv").read_bytes())

@@ -7,13 +7,44 @@ import pandas as pd
 import streamlit as st
 
 from dashboard_core import (read_csv, csv_bytes, validate_production, merge_lines,
-                            equipment_summary, pareto_summary, daily_summary, join_quality)
+                            equipment_summary, pareto_summary, daily_summary, join_quality,
+                            calculation_checks)
 
 
 ROOT = Path(__file__).resolve().parent
-st.set_page_config(page_title="생산·품질 실습 대시보드", page_icon="📊", layout="wide")
-st.title("생산·품질 실습 대시보드")
-st.caption("CSV 읽기부터 검증·연결·집계·시각화까지, 작업별로 확인합니다. SYN/SIM 합성 실습 데이터입니다.")
+st.set_page_config(page_title="생산·품질 작업실", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
+st.markdown("""
+<style>
+  .stApp { background: #ffffff; color: #262b36; }
+  [data-testid="stSidebar"] { background: #f0f2f6; border-right: 1px solid #dfe2e8; }
+  [data-testid="stSidebar"] > div:first-child { padding-top: 2rem; }
+  [data-testid="stSidebar"] h2 { font-size: 1rem; font-weight: 700; }
+  [data-testid="stSidebar"] label p { font-size: .82rem; }
+  .block-container { max-width: 1400px; padding: 2.9rem 3.2rem 2rem; }
+  h1 { font-size: 2rem !important; letter-spacing: -.06em; padding-bottom: .3rem !important; }
+  h2 { font-size: 1.25rem !important; letter-spacing: -.035em; }
+  h3 { font-size: 1.05rem !important; }
+  [data-testid="stCaptionContainer"] { color: #858994; }
+  [data-testid="stMetricLabel"] p { color: #606773; font-size: .78rem; }
+  [data-testid="stMetricValue"] { font-size: 1.8rem; font-weight: 450; letter-spacing: -.04em; }
+  [data-testid="stMetric"] { padding: .25rem 0 .65rem; }
+  [data-baseweb="tab-list"] { gap: 1.2rem; border-bottom: 1px solid #e6e8ed; }
+  [data-baseweb="tab"] { height: 2.6rem; padding: 0; background: transparent; white-space: nowrap; }
+  [data-baseweb="tab"] p { font-size: .8rem; }
+  [data-baseweb="tab-panel"] { padding-top: 1.2rem; }
+  [data-testid="stExpander"] { border-color: #e1e5eb; border-radius: 5px; }
+  [data-testid="stAlert"] { border-radius: 4px; font-size: .86rem; }
+  div[data-testid="stDataFrame"] { border: 1px solid #e6e8ed; border-radius: 4px; }
+  @media (max-width: 800px) {
+    .block-container { padding: 2rem 1rem; }
+    h1 { font-size: 1.65rem !important; }
+    [data-baseweb="tab-list"] { gap: .9rem; }
+    [data-testid="stMetricValue"] { font-size: 1.4rem; }
+  }
+</style>
+""", unsafe_allow_html=True)
+st.title("생산·품질 작업실")
+st.caption("합성 자료로 살펴보는 CSV 읽기 · 검증 · 연결 · 집계 · 시각화")
 
 
 def table(rows):
@@ -59,8 +90,9 @@ def cards_view(cards):
                             st.caption(f'검사 {r["inspected_qty"]:,}개 · {r["lot_count"]} LOT')
 
 
-st.sidebar.header("분석할 생산 데이터")
-uploaded = st.sidebar.file_uploader("production.csv 업로드 (선택)", type="csv", key="production")
+st.sidebar.header("분석 범위")
+with st.sidebar.expander("생산 CSV 바꾸기", expanded=False):
+    uploaded = st.file_uploader("production.csv", type="csv", key="production")
 try:
     raw = uploaded.getvalue() if uploaded is not None else (ROOT/"production.csv").read_bytes()
     columns, original = read_csv(raw)
@@ -68,15 +100,15 @@ try:
 except (OSError, UnicodeError, ValueError) as error:
     st.error(f"생산 데이터 읽기 실패: {error}")
     st.stop()
-st.sidebar.caption(f'원본 {len(original)}행 · 유효 {len(valid)}행 · 보류 {len(rejected)}행')
 if rejected:
     st.warning(f"오류가 있는 {len(rejected)}행을 보류했습니다. 데이터 검증 탭에서 사유를 확인하세요. 집계는 유효 행만 사용합니다.")
 filtered = valid
+equipment, date_range = [], ()
 if valid:
     available = sorted({r["equipment_id"] for r in valid})
-    equipment = st.sidebar.multiselect("설비 선택", available, default=available)
+    equipment = st.sidebar.multiselect("설비", available, default=available[:1])
     dates = pd.to_datetime([r["work_date"] for r in valid])
-    date_range = st.sidebar.date_input("분석 기간", (dates.min().date(), dates.max().date()),
+    date_range = st.sidebar.date_input("작업 기간", (dates.min().date(), dates.max().date()),
                                        min_value=dates.min().date(), max_value=dates.max().date())
     if len(date_range) == 2:
         filtered = [r for r in valid if r["equipment_id"] in equipment
@@ -84,15 +116,22 @@ if valid:
     else:
         st.info("분석 기간의 종료일을 선택하세요.")
         filtered = []
-st.sidebar.caption("생산 집계와 품질 연결에 필터를 적용합니다. CSV 병합·검증·처리일지는 각 원본 기준입니다.")
+st.sidebar.caption("설비와 날짜를 고르면 생산 집계와 품질 연결이 함께 바뀝니다. CSV 병합·데이터 검증·처리일지는 각 원본 기준입니다.")
+st.sidebar.info("합성 자료 전용 · 검토·실습 기준")
+st.sidebar.caption(f'원본 {len(original)}행 · 유효 {len(valid)}행 · 보류 {len(rejected)}행')
 daily, cards = daily_summary(filtered)
-tabs = st.tabs(["개요", "CSV 병합", "데이터 검증", "장비별 수율", "생산·품질 연결", "불량 파레토", "일별 수율", "처리일지"])
+inspected_total = sum(r["inspected_qty"] for r in filtered)
+good_total = sum(r["good_qty"] for r in filtered)
+defect_total = sum(r["defect_qty"] for r in filtered)
+for column, label, value in zip(st.columns(4),
+                               ["선택 LOT", "검사수량", "불량수량", "수율"],
+                               [f"{len(filtered):,}건", f"{inspected_total:,}개", f"{defect_total:,}개",
+                                f"{good_total/inspected_total*100:.2f}%" if inspected_total else "—"]):
+    column.metric(label, value)
+tabs = st.tabs(["파일·작업 안내", "CSV 합치기", "데이터 검증", "장비별 수율", "LOT 연결", "불량 파레토", "수율 추이", "처리일지", "검증·사람 승인"])
 
 with tabs[0]:
-    st.subheader("작업 현황과 요약")
-    if cards:
-        cards_view(cards)
-    else:
+    if not filtered:
         st.info("선택 조건에 해당하는 유효 생산 데이터가 없습니다.")
     st.subheader("폴더와 기존 작업")
     table([
@@ -237,6 +276,24 @@ with tabs[7]:
         download(logs,"처리일지_duration.csv","log",list(dict.fromkeys([*log_columns,"duration_ms"])))
     except (OSError,UnicodeError,ValueError) as error:
         st.error(str(error))
+
+with tabs[8]:
+    st.subheader("계산 검증 결과")
+    checks = calculation_checks(filtered, len(rejected))
+    table(checks)
+    scope = {"생산원본": uploaded.name if uploaded is not None else "production.csv",
+             "설비":equipment, "기간":[d.isoformat() for d in date_range], "선택_LOT수":len(filtered)}
+    with st.expander("검사 실행 기록", expanded=False):
+        st.json({"범위":scope, "검증":checks,
+                 "실행범위":"현재 선택 데이터의 계산·총량 검증. 브라우저 UI·외부 배포·업무 적합성 검사는 포함하지 않습니다."})
+    st.subheader("사람 승인")
+    st.info("미확인 — 작은 표 검산, 현장 자료 출처, 유형 귀속 기준에 대한 사람 승인 기록은 없습니다.")
+    st.caption("계산 검증 통과는 사람의 승인이나 불량 원인 증명을 뜻하지 않습니다.")
+    approval_record = {"선택조건":scope, "계산검증":checks,
+                       "사람승인":{"상태":"미확인", "승인자":None, "승인일시":None},
+                       "검사한계":"현재 데이터의 계산만 검증. 화면·외부 배포·업무 적합성은 별도 확인 필요."}
+    st.download_button("검증·승인 상태 다운로드",json.dumps(approval_record,ensure_ascii=False,indent=2).encode("utf-8"),
+                       "verification_status.json",mime="application/json")
 
 st.divider()
 st.caption("해석 범위: 수량·수율·분모를 함께 확인하세요. 이 자료는 합성 실습 데이터이며, 순위와 추세는 원인을 증명하지 않습니다.")

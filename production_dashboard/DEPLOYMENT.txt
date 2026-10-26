@@ -2,7 +2,9 @@
 
 시작 파일: streamlit_app.py
 Python 권장 버전: 3.12
-탭: 개요 / CSV 병합 / 데이터 검증 / 장비별 수율 / 생산·품질 연결 / 불량 파레토 / 일별 수율 / 처리일지
+탭: 파일·작업 안내 / CSV 합치기 / 데이터 검증 / 장비별 수율 / LOT 연결 / 불량 파레토 / 수율 추이 / 처리일지 / 검증·사람 승인
+화면: 흰색 본문, 회색 분석 범위 사이드바, 상단 지표 4개, 밑줄 탭.
+기본 선택: 첫 번째 설비. 사이드바에서 여러 설비 또는 전체 설비를 선택할 수 있습니다.
 
 로컬 실행 (프로젝트 폴더에서):
   python -m venv .venv
@@ -23,7 +25,7 @@ Streamlit Community Cloud 배포:
   3. Create app에서 저장소와 브랜치를 선택합니다.
   4. Main file path를 streamlit_app.py로 설정합니다.
   5. Python 3.12를 선택하고 Deploy를 누릅니다.
-  6. 앱이 열린 뒤 8개 탭과 CSV/JSON 다운로드를 확인합니다.
+  6. 앱이 열린 뒤 9개 탭과 CSV/JSON 다운로드를 확인합니다.
 공식 안내: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy
 
 데이터:

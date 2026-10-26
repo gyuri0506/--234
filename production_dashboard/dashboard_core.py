@@ -2,6 +2,7 @@
 
 import csv
 import io
+import math
 from collections import Counter, defaultdict
 from datetime import date
 
@@ -144,3 +145,30 @@ def join_quality(production, columns, quality):
         result.append({**row, "production_equipment_id": match["equipment_id"] if match else None,
                        "production_matched": match is not None})
     return result
+
+
+def calculation_checks(rows, rejected_count=0):
+    """현재 선택 범위에서 실행한 계산 검증만 반환한다. 사람 승인과는 별개다."""
+    labels = ["입력 데이터와 수량 조건", "설비별 검사수량 합계 보존", "전체 수율을 합계 기준으로 계산",
+              "일별 양품수량 합계 보존", "유형별 불량수량 합계 보존", "마지막 누적 비중 100%"]
+    if not rows:
+        return [{"검사": label, "결과": "미실행", "확인 내용": "선택한 유효 데이터가 없습니다."} for label in labels]
+    inspected = sum(r["inspected_qty"] for r in rows)
+    good = sum(r["good_qty"] for r in rows)
+    defects = sum(r["defect_qty"] for r in rows)
+    equipment = equipment_summary(rows)
+    daily, cards = daily_summary(rows)
+    pareto = pareto_summary(rows)
+    observations = [r for r in daily if r["observed"]]
+    checks = [
+        (not rejected_count and all(r["inspected_qty"]>0 and 0<=r["good_qty"]<=r["inspected_qty"] for r in rows),
+         f"선택 {len(rows)} LOT · 전체 원본 보류 {rejected_count}행"),
+        (sum(r["inspected_qty"] for r in equipment)==inspected, f"원본·설비 합계 {inspected:,}개"),
+        (math.isclose(cards[4]["값"],good/inspected*100), f"{good:,} / {inspected:,} × 100 = {good/inspected*100:.2f}%"),
+        (sum(r["good_qty"] for r in observations)==good, f"원본·일별 합계 {good:,}개"),
+        (sum(r["defect_qty"] for r in pareto)==defects, f"원본·유형별 합계 {defects:,}개"),
+        (math.isclose(pareto[-1]["cumulative_pct"],100.0) if defects else None,
+         "100.00%" if defects else "불량수량 0개: 비중을 정의하지 않습니다."),
+    ]
+    return [{"검사":label, "결과":"미해당" if passed is None else ("통과" if passed else "보류"), "확인 내용":detail}
+            for label,(passed,detail) in zip(labels,checks)]
